@@ -10,14 +10,32 @@ extra_setuptools_args = dict(
     tests_require=['pytest']
 )
 
+required = []
+dependency_links = []
+
+# git installs too
+EGG_MARK = '#egg='
+for line in requirements:
+    if line.startswith('-e git:') or line.startswith('-e git+') or \
+            line.startswith('git:') or line.startswith('git+'):
+        if EGG_MARK in line:
+            package_name = line[line.find(EGG_MARK) + len(EGG_MARK):]
+            required.append(package_name)
+            dependency_links.append(line)
+        else:
+            print('Dependency to a git repository should have the format:')
+            print('git+ssh://git@github.com/xxxxx/xxxxxx#egg=package_name')
+    else:
+        required.append(line)
+
 setup(
     name ='apollo',
     version = __version__,
     author ='Stan Biryukov',
     author_email ='stan0625@uw.com',
     url = 'git@github.com:stanbiryukov/apollo.git',
-    install_requires = requirements,
-    dependency_links=['http://github.com/stanbiryukov/PyTorch-LBFGS/tarball/master#egg=torchlbfgs'],
+    install_requires=required,
+    dependency_links=dependency_links,
     package_data = {'apollo':['resources/*']},
     packages = find_packages(exclude=['apollo/tests']),
     license = 'MIT',
