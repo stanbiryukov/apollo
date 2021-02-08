@@ -304,9 +304,9 @@ class GP(BaseEstimator):
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         scheduler=None,
         verbose=False,
-        l2_reg=True,
+        l2_reg=False,
         l1_reg=False,
-        max_iter=2500,
+        max_iter=1000,
         feature_extractor=None,
         sparse=False,
         alpha=None,
@@ -316,6 +316,8 @@ class GP(BaseEstimator):
         partition_kernel=True,
         n_inducing=1024,
         linear_init=torch.nn.init.kaiming_normal_,
+        early_stopping=True,
+
     ):
         self.x_scaler = x_scaler
         self.y_scaler = y_scaler
@@ -338,6 +340,7 @@ class GP(BaseEstimator):
         self.partition_kernel = partition_kernel
         self.n_inducing = n_inducing
         self.linear_init = linear_init
+        self.early_stopping = early_stopping
 
     def _to_tensor(self, tensor, dtype=torch.FloatTensor):
         return torch.as_tensor(tensor).to(self.device)
@@ -474,7 +477,7 @@ class GP(BaseEstimator):
                         options = {
                             "closure": closure,
                             "current_loss": loss,
-                            "max_ls": 10,
+                            "max_ls": 20,
                         }
                         loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(
                             options
@@ -496,9 +499,10 @@ class GP(BaseEstimator):
             while (not stop) & (i < self.max_iter):
                 with gpytorch.beta_features.checkpoint_kernel(checkpoint_size):
                     # loss = self.optimizer.step(closure)
-                    options = {"closure": closure, "current_loss": loss, "max_ls": 10}
+                    options = {"closure": closure, "current_loss": loss, "max_ls": 20}
                     loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(options)
-                stop = self.stopping_criterion.evaluate(fvals=loss.detach().cpu())
+                if self.early_stopping in [1]:
+                    stop = self.stopping_criterion.evaluate(fvals=loss.detach().cpu())
                 if "ReduceLROnPlateau" in self.scheduler.__class__.__name__:
                     self.scheduler.step(loss.detach().cpu())
                 else:
@@ -511,7 +515,8 @@ class GP(BaseEstimator):
                 # print(options)
                 loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(options)
                 # print(loss)
-                stop = self.stopping_criterion.evaluate(fvals=loss.detach().cpu())
+                if self.early_stopping in [1]:
+                    stop = self.stopping_criterion.evaluate(fvals=loss.detach().cpu())
 
                 if "ReduceLROnPlateau" in self.scheduler.__class__.__name__:
                     self.scheduler.step(loss.detach().cpu())
