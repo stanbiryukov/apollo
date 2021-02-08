@@ -317,6 +317,7 @@ class GP(BaseEstimator):
         n_inducing=1024,
         linear_init=torch.nn.init.kaiming_normal_,
         early_stopping=True,
+        learn_additional_noise=True,
 
     ):
         self.x_scaler = x_scaler
@@ -341,6 +342,7 @@ class GP(BaseEstimator):
         self.n_inducing = n_inducing
         self.linear_init = linear_init
         self.early_stopping = early_stopping
+        self.learn_additional_noise = learn_additional_noise
 
     def _to_tensor(self, tensor, dtype=torch.FloatTensor):
         return torch.as_tensor(tensor).to(self.device)
@@ -378,10 +380,13 @@ class GP(BaseEstimator):
                 self.likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(
                     noise=torch.full_like(self.y, self.alpha).type(torch.FloatTensor),
                     noise_constraint=gpytorch.constraints.GreaterThan(1e-4),
+                    learn_additional_noise=self.learn_additional_noise,
+
                 ).to(self.device)
             else:
                 self.likelihood = gpytorch.likelihoods.GaussianLikelihood(
-                    noise_constraint=gpytorch.constraints.GreaterThan(1e-4)
+                    noise_constraint=gpytorch.constraints.GreaterThan(1e-4),
+                    learn_additional_noise=self.learn_additional_noise,
                 ).to(self.device)
             self.model = GPR(
                 self.kernel,
