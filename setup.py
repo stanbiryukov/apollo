@@ -17,7 +17,7 @@ setup(
     author ='Stan Biryukov',
     author_email ='stan0625@uw.com',
     url = 'git@github.com:stanbiryukov/apollo.git',
-    install_requires = [requirements, 'torchlbfgs @ https://api.github.com/repos/stanbiryukov/PyTorch-LBFGS/tarball']
+    install_requires = [requirements, 'torchlbfgs @ https://api.github.com/repos/stanbiryukov/PyTorch-LBFGS/tarball'],
     package_data = {'apollo':['resources/*']},
     packages = find_packages(exclude=['apollo/tests']),
     license = 'MIT',
