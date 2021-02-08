@@ -378,7 +378,7 @@ class GP(BaseEstimator):
         elif self.problem in ["regression"]:
             if self.alpha is not None:
                 self.likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(
-                    noise=torch.full_like(self.y, self.alpha).type(torch.FloatTensor),
+                    noise=self._to_tensor(self.alpha.astype(np.float32)),
                     noise_constraint=gpytorch.constraints.GreaterThan(1e-4),
                     learn_additional_noise=self.learn_additional_noise,
 
