@@ -4,11 +4,10 @@ import time
 from functools import partial
 
 import gpytorch
+import numpy as np
 import torch
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics import get_scorer
-from sklearn.model_selection import GridSearchCV, ShuffleSplit, cross_val_score
-from sklearn.preprocessing import FunctionTransformer, StandardScaler
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 from torchLBFGS import FullBatchLBFGS
 
