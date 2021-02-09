@@ -6,7 +6,7 @@ from functools import partial
 import gpytorch
 import numpy as np
 import torch
-from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.base import BaseEstimator
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 from torchLBFGS import FullBatchLBFGS
@@ -212,10 +212,6 @@ class GPR(gpytorch.models.ExactGP):
     ):
         super(GPR, self).__init__(train_x, train_y, likelihood)
         self.likelihood = likelihood
-        # if "pectral" in kernel.__class__.__name__:
-        #    self.base_covar_module = kernel  # don't scale Spectral Kernel.
-        # else:
-        # self.base_covar_module = gpytorch.kernels.ScaleKernel(kernel)
         self.base_covar_module = kernel
         self.feature_extractor = feature_extractor
         self.add_feature = add_feature
@@ -318,7 +314,6 @@ class GP(BaseEstimator):
         linear_init=torch.nn.init.kaiming_normal_,
         early_stopping=True,
         learn_additional_noise=True,
-
     ):
         self.x_scaler = x_scaler
         self.y_scaler = y_scaler
@@ -381,7 +376,6 @@ class GP(BaseEstimator):
                     noise=self._to_tensor(self.alpha.astype(np.float32)),
                     noise_constraint=gpytorch.constraints.GreaterThan(1e-4),
                     learn_additional_noise=self.learn_additional_noise,
-
                 ).to(self.device)
             else:
                 self.likelihood = gpytorch.likelihoods.GaussianLikelihood(
@@ -455,8 +449,6 @@ class GP(BaseEstimator):
                         "Iter %d - Loss: %.3f - Took: %.3f [s]"
                         % (i, loss.item(), time.time() - start)
                     )
-            # if loss.requires_grad:
-            #   loss.backward()
             return loss
 
         loss = closure()
@@ -503,7 +495,6 @@ class GP(BaseEstimator):
         if self.partition_kernel:
             while (not stop) & (i < self.max_iter):
                 with gpytorch.beta_features.checkpoint_kernel(checkpoint_size):
-                    # loss = self.optimizer.step(closure)
                     options = {"closure": closure, "current_loss": loss, "max_ls": 20}
                     loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(options)
                 if self.early_stopping in [1]:
@@ -516,10 +507,8 @@ class GP(BaseEstimator):
 
         else:
             while (not stop) & (i < self.max_iter):
-                options = {"closure": closure, "current_loss": loss, "max_ls": 10}
-                # print(options)
+                options = {"closure": closure, "current_loss": loss, "max_ls": 20}
                 loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(options)
-                # print(loss)
                 if self.early_stopping in [1]:
                     stop = self.stopping_criterion.evaluate(fvals=loss.detach().cpu())
 
