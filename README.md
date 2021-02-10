@@ -1,5 +1,5 @@
 # apollo
-Highly performant and scalable out-of-the-box gaussian process regression and binomial classification. Built upon GPyTorch, with a familiar sklearn api.
+CUDA accelerated highly performant and scalable out-of-the-box gaussian process regression and binomial classification. Built upon GPyTorch, with a familiar sklearn api.
 
 # Examples
 ## Pattern learning w/ SpectralMixture Kernel
@@ -40,3 +40,18 @@ plt.plot(X, Y, "x", color='blue', alpha=.01)
 plt.plot(X_, hat[:,0], c="k", alpha=.5, color='purple')
 plt.fill_between(X_.reshape(-1,), hat[:,1], hat[:,2], color='purple', alpha=.5)
 ```
+## Performant ML solver
+```
+from sklearn import datasets
+import sklearn.metrics as metrics
+from sklearn.model_selection import train_test_split
+
+X, y = datasets.load_boston(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=3249)
+
+ml = GP(l2_reg=True)
+ml.fit(X=X_train, y=y_train)
+
+metrics.mean_squared_error(y_test, fgp.predict(X=X_test), squared=True)
+```
+
