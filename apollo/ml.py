@@ -398,6 +398,29 @@ class GP(BaseEstimator):
             ).to(self.device)
         if self.fte:
             self.model.feature_extractor.apply(self.init_weights)
+        # set a reasonable default prior for scale decorated and non-scaled kernels
+        try:
+            hypers = {
+            "base_covar_module.base_kernel.lengthscale": gpytorch.priors.GammaPrior(
+                3.0, 6.0
+            ).mean.to(self.device),
+            "base_covar_module.outputscale": gpytorch.priors.GammaPrior(
+                2.0, 0.15
+            ).mean.to(self.device),
+            }
+            self.model.initialize(**hypers)
+        except:
+            try:
+                hypers = {
+                "base_covar_module.lengthscale": gpytorch.priors.GammaPrior(
+                    3.0, 6.0
+                ).mean.to(self.device)
+                }
+                self.model.initialize(**hypers)
+            except Exception as e:
+                print(e)
+                print('Using default priors.')
+                pass
         self.model.mean_module.apply(self.init_weights)
         self.optimizer = self.base_optimizer(params=list(self.model.parameters()))
         self.optimizer.zero_grad()
