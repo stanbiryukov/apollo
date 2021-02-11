@@ -52,6 +52,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random
 ml = GP(l2_reg=True)
 ml.fit(X=X_train, y=y_train)
 
-metrics.mean_squared_error(y_test, fgp.predict(X=X_test), squared=True)
+metrics.mean_squared_error(y_test, ml.predict(X=X_test), squared=True)
 ```
 
