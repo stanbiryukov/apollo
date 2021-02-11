@@ -1,5 +1,5 @@
 # apollo
-CUDA accelerated highly performant and scalable out-of-the-box gaussian process regression and binomial classification. Built upon GPyTorch, with a familiar sklearn api.
+CUDA accelerated highly performant and scalable out-of-the-box gaussian process regression and Bernoulli classification. Built upon GPyTorch, with a familiar sklearn api.
 
 # Examples
 ## Pattern learning w/ SpectralMixture Kernel
