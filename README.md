@@ -3,7 +3,7 @@ CUDA accelerated highly performant and scalable out-of-the-box gaussian process 
 
 # Examples
 ## Pattern learning w/ SpectralMixture Kernel
-```
+```python
 from apollo.ml import GP
 import gpytorch
 import matplotlib.pyplot as plt
@@ -22,7 +22,7 @@ plt.plot(X_, hat[:,0], color='orange')
 plt.fill_between(X_.reshape(-1,), hat[:,1], hat[:,2], color='blue', alpha=.5)
 ```
 ## Sparse GP
-```
+```python
 def func(x):
     return np.sin(x * 2 * np.pi) + 0.4 * np.cos(x * 5 * np.pi) + 0.7 * np.sin(x * 6 * np.pi)
 
@@ -41,7 +41,7 @@ plt.plot(X_, hat[:,0], c="k", alpha=.5, color='purple')
 plt.fill_between(X_.reshape(-1,), hat[:,1], hat[:,2], color='purple', alpha=.5)
 ```
 ## Performant ML solver
-```
+```python
 from sklearn import datasets
 import sklearn.metrics as metrics
 from sklearn.model_selection import train_test_split
