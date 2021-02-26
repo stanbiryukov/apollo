@@ -54,4 +54,35 @@ ml.fit(X=X_train, y=y_train)
 
 metrics.mean_squared_error(y_test, ml.predict(X=X_test), squared=True)
 ```
+## Binomial classification
+```python
+from sklearn.datasets import make_moons
+from sklearn.preprocessing import FunctionTransformer
+import matplotlib
 
+# Create dataset 
+X, y = make_moons(noise=0.3, n_samples=100, random_state=0)
+
+# Create evalutaion grid
+h = 0.05
+x_min, x_max = X[:, 0].min() - .5, X[:, 0].max() + .5
+y_min, y_max = X[:, 1].min() - .5, X[:, 1].max() + .5
+xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                     np.arange(y_min, y_max, h))
+X_eval = np.vstack((xx.reshape(-1), 
+                    yy.reshape(-1))).T
+
+# binomial likelihood w/ anisotropic Matern kernel; keep y in 0-1 space.
+ml = GP(problem='binomial', y_scaler=FunctionTransformer(), kernel=gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=2))
+ml.fit(X, y)
+
+# predict
+Z_skl = ml.predict(np.vstack((xx.ravel(), yy.ravel())).T).reshape(xx.shape)
+
+normalize = matplotlib.colors.Normalize(vmin=0, vmax=1)
+f, ax = plt.subplots(figsize=(10, 10))
+im = ax.contourf(xx, yy, Z_skl, norm=normalize, levels=16)
+im2 = ax.scatter(X[:,0], X[:,1], c=y, norm=normalize)
+f.colorbar(im)
+
+```
