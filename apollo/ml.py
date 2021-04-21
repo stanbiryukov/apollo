@@ -295,7 +295,7 @@ class GP(BaseEstimator):
         kernel=gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)),
         mean_module=gpytorch.means.LinearMean,
         base_optimizer=partial(
-            FullBatchLBFGS, lr=1, line_search="Wolfe", history_size=100
+            torch.optim.LBFGS, lr=1, line_search_fn="strong_wolfe", history_size=100
         ),
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         scheduler=None,
@@ -401,25 +401,25 @@ class GP(BaseEstimator):
         # set a reasonable default prior for scale decorated and non-scaled kernels
         try:
             hypers = {
-            "base_covar_module.base_kernel.lengthscale": gpytorch.priors.GammaPrior(
-                3.0, 6.0
-            ).mean.to(self.device),
-            "base_covar_module.outputscale": gpytorch.priors.GammaPrior(
-                2.0, 0.15
-            ).mean.to(self.device),
+                "base_covar_module.base_kernel.lengthscale": gpytorch.priors.GammaPrior(
+                    3.0, 6.0
+                ).mean.to(self.device),
+                "base_covar_module.outputscale": gpytorch.priors.GammaPrior(
+                    2.0, 0.15
+                ).mean.to(self.device),
             }
             self.model.initialize(**hypers)
         except:
             try:
                 hypers = {
-                "base_covar_module.lengthscale": gpytorch.priors.GammaPrior(
-                    3.0, 6.0
-                ).mean.to(self.device)
+                    "base_covar_module.lengthscale": gpytorch.priors.GammaPrior(
+                        3.0, 6.0
+                    ).mean.to(self.device)
                 }
                 self.model.initialize(**hypers)
             except Exception as e:
                 print(e)
-                print('Using default priors.')
+                print("Using default priors.")
                 pass
         self.model.mean_module.apply(self.init_weights)
         self.optimizer = self.base_optimizer(params=list(self.model.parameters()))
@@ -472,10 +472,9 @@ class GP(BaseEstimator):
                         "Iter %d - Loss: %.3f - Took: %.3f [s]"
                         % (i, loss.item(), time.time() - start)
                     )
+            if loss.requires_grad:
+                loss.backward()
             return loss
-
-        loss = closure()
-        loss.backward()
 
         if self.partition_kernel:
 
@@ -493,14 +492,7 @@ class GP(BaseEstimator):
                 try:
                     # Try a full forward and backward pass with this setting to check memory usage
                     with gpytorch.beta_features.checkpoint_kernel(checkpoint_size):
-                        options = {
-                            "closure": closure,
-                            "current_loss": loss,
-                            "max_ls": 20,
-                        }
-                        loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(
-                            options
-                        )
+                        loss = self.optimizer.step(closure)
                     # when successful, break out of for-loop and jump to finally block
                     break
                 except RuntimeError as e:
@@ -517,8 +509,7 @@ class GP(BaseEstimator):
         if self.partition_kernel:
             while (not stop) & (i < self.max_iter):
                 with gpytorch.beta_features.checkpoint_kernel(checkpoint_size):
-                    options = {"closure": closure, "current_loss": loss, "max_ls": 20}
-                    loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(options)
+                    loss = self.optimizer.step(closure)
                 if self.early_stopping in [1]:
                     stop = self.stopping_criterion.evaluate(fvals=loss.detach().cpu())
                 if "ReduceLROnPlateau" in self.scheduler.__class__.__name__:
@@ -529,8 +520,7 @@ class GP(BaseEstimator):
 
         else:
             while (not stop) & (i < self.max_iter):
-                options = {"closure": closure, "current_loss": loss, "max_ls": 20}
-                loss, _, lr, _, F_eval, G_eval, _, _ = self.optimizer.step(options)
+                loss = self.optimizer.step(closure)
                 if self.early_stopping in [1]:
                     stop = self.stopping_criterion.evaluate(fvals=loss.detach().cpu())
 
