@@ -9,8 +9,6 @@ import torch
 from sklearn.base import BaseEstimator
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
-from torchLBFGS import FullBatchLBFGS
-
 
 def set_seed(seed):
     import random
