@@ -1,4 +1,4 @@
 numpy>=1.18.1
 torch>=1.7.0
 scikit-learn>=0.24.0
-gpytorch==1.4.1
+gpytorch>=1.4.1

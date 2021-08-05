@@ -10,6 +10,7 @@ from sklearn.base import BaseEstimator
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 
+
 def set_seed(seed):
     import random
 
@@ -215,6 +216,7 @@ class GPR(gpytorch.models.ExactGP):
         self.add_feature = add_feature
         self.device = device
         set_seed(seed)
+
         if mean_module in [gpytorch.means.LinearMean]:
 
             if fit_intercept in [1]:
@@ -269,6 +271,15 @@ class GPR(gpytorch.models.ExactGP):
         else:
             self.covar_module = self.base_covar_module
 
+        # multi
+        if "Multi" in self.likelihood.__class__.__name__:
+            self.mean_module = gpytorch.means.MultitaskMean(
+                self.mean_module, num_tasks=train_y.shape[1]
+            )
+            self.covar_module = gpytorch.kernels.MultitaskKernel(
+                self.covar_module, num_tasks=train_y.shape[1], rank=1
+            )
+
     def forward(self, x):
         if (self.feature_extractor is not None) and (self.add_feature in [1]):
             xf = self.feature_extractor(x)
@@ -277,7 +288,10 @@ class GPR(gpytorch.models.ExactGP):
             x = self.feature_extractor(x)
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+        if "Multi" in self.likelihood.__class__.__name__:
+            return gpytorch.distributions.MultitaskMultivariateNormal(mean_x, covar_x)
+        else:
+            return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 
 class GP(BaseEstimator):
@@ -338,17 +352,17 @@ class GP(BaseEstimator):
         self.learn_additional_noise = learn_additional_noise
 
     def _to_tensor(self, tensor, dtype=torch.FloatTensor):
-        return torch.as_tensor(tensor).to(self.device)
+        return torch.as_tensor(tensor).type(dtype).to(self.device)
 
     def _setfit(self, random_state, X, y):
         set_seed(random_state)
         self.data_dim = X.shape[1]
         self.classes_ = np.unique(y)
+        if len(y.shape) == 1:
+            y = y.reshape(-1, 1)
         self.y = self._to_tensor(
-            self.y_scaler.fit_transform(y.reshape(-1, 1)).astype(np.float32)
-        ).reshape(
-            -1,
-        )
+            self.y_scaler.fit_transform(y).astype(np.float32)
+        ).squeeze()
         self.X = self._to_tensor(self.x_scaler.fit_transform(X).astype(np.float32))
         self.fte = (
             self.feature_extractor(data_dim=data_dim)
@@ -380,6 +394,11 @@ class GP(BaseEstimator):
                     noise_constraint=gpytorch.constraints.GreaterThan(1e-4),
                     learn_additional_noise=self.learn_additional_noise,
                 ).to(self.device)
+            if len(self.y.shape) > 1:
+                self.likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(
+                    num_tasks=train_y.shape[1]
+                )
+
             self.model = GPR(
                 self.kernel,
                 self.mean_module,
@@ -542,45 +561,45 @@ class GP(BaseEstimator):
         gc.collect()
         torch.cuda.empty_cache()
 
-    def _predict(self, X, sigma=None, n_draws=0):
+    def _predict(self, X, sigma=None):
         torch.cuda.empty_cache()
         set_seed(self.random_state)
+
         X = self._to_tensor(self.x_scaler.transform(X).astype(np.float32))
         covs_loader = DataLoader(X, batch_size=1024, shuffle=False)
         self.model.eval()
+
         ar = []
+        ar_lower = []
+        ar_upper = []
 
         with torch.no_grad(), gpytorch.settings.fast_pred_samples(), gpytorch.settings.fast_pred_var():
             for data in covs_loader:
                 mvnhat = self.likelihood(self.model(data.to(self.device)))
-                if n_draws > 0:
-                    preds = (
-                        mvnhat.sample(sample_shape=torch.Size([int(n_draws)]))
-                        .t()
-                        .detach()
-                        .cpu()
+                preds = mvnhat.mean.detach().cpu()
+                if sigma:
+                    std = mvnhat.stddev.mul_(sigma).detach().cpu()
+                    lower = self.y_scaler.inverse_transform(
+                        preds.sub(std).cpu().numpy()
                     )
-                else:
-                    preds = mvnhat.mean.detach().cpu()
-                    if sigma:
-                        std = mvnhat.stddev.mul_(sigma).detach().cpu()
-                        preds = torch.stack(
-                            [preds, preds.sub(std), preds.add(std)], dim=1
-                        )
-                ar.append(preds)
-        # now concat and rescale
-        if len(preds.shape) > 1:
-            ar = self.y_scaler.inverse_transform(torch.cat(ar, dim=0).cpu().numpy())
+                    upper = self.y_scaler.inverse_transform(
+                        preds.add(std).cpu().numpy()
+                    )
+                    ar_lower.append(lower.squeeze())
+                    ar_upper.append(upper.squeeze())
+
+                ar.append(self.y_scaler.inverse_transform(preds.numpy()).squeeze())
+
+        ar = np.concatenate(ar, axis=0).squeeze()
+        if sigma:
+            ar_lower = np.concatenate(ar_lower, axis=0).squeeze()
+            ar_upper = np.concatenate(ar_upper, axis=0).squeeze()
+            return ar, ar_lower, ar_upper
         else:
-            ar = self.y_scaler.inverse_transform(
-                torch.cat(ar, dim=0).cpu().numpy().reshape(-1, 1)
-            )
+            return ar
 
-        return ar
-
-    def predict(self, X, sigma=None, n_draws=0):
-        hat = self._predict(X, sigma=sigma, n_draws=n_draws)
-        return hat
+    def predict(self, X, sigma=None):
+        return self._predict(X, sigma=sigma)
 
     def init_weights(self, m):
         """
@@ -615,27 +634,3 @@ class GP(BaseEstimator):
                     self.linear_init(param.data)
                 elif "weight_hh" in name:
                     torch.nn.init.orthogonal_(param.data)
-
-
-class Apollo:
-    """
-    Fit any sklearn friendly ML model and then fit residuals with a GP.
-    """
-
-    def __init__(
-        self,
-        base_model,
-        gpr=GP(mean_module=gpytorch.means.ZeroMean),
-    ):
-        self.base_model = copy.deepcopy(base_model)
-        self.gpr = copy.deepcopy(gpr)
-
-    def fit(self, X, exog, y):
-        self.base_model.fit(exog, y)
-        residuals = y.reshape(-1, 1) - self.base_model.predict(exog).reshape(-1, 1)
-        self.gpr.fit(X, residuals)
-
-    def predict(self, exog, X, sigma=None):
-        return self.gpr.predict(X, sigma=sigma) + self.base_model.predict(exog).reshape(
-            -1,
-        )[:, np.newaxis]
