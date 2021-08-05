@@ -396,7 +396,7 @@ class GP(BaseEstimator):
                 ).to(self.device)
             if len(self.y.shape) > 1:
                 self.likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(
-                    num_tasks=train_y.shape[1]
+                    num_tasks=self.y.shape[1]
                 )
 
             self.model = GPR(
