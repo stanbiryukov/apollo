@@ -634,3 +634,27 @@ class GP(BaseEstimator):
                     self.linear_init(param.data)
                 elif "weight_hh" in name:
                     torch.nn.init.orthogonal_(param.data)
+
+
+class Apollo:
+    """
+    Fit any sklearn friendly ML model and then fit residuals with a GP.
+    """
+
+    def __init__(
+        self,
+        base_model,
+        gpr=GP(mean_module=gpytorch.means.ZeroMean),
+    ):
+        self.base_model = copy.deepcopy(base_model)
+        self.gpr = copy.deepcopy(gpr)
+
+    def fit(self, X, exog, y):
+        self.base_model.fit(exog, y)
+        residuals = y.reshape(-1, 1) - self.base_model.predict(exog).reshape(-1, 1)
+        self.gpr.fit(X, residuals)
+
+    def predict(self, exog, X, sigma=None):
+        return self.gpr.predict(X, sigma=sigma) + self.base_model.predict(exog).reshape(
+            -1,
+        )[:, np.newaxis]
